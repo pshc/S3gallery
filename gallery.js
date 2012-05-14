@@ -10,6 +10,23 @@ var async = require('async'),
 var s3 = require('aws2js').load('s3', config.AWS.key, config.AWS.secret);
 s3.setBucket(config.AWS.bucket);
 
+// Crawling
+
+function findAlbums(dir, callback) {
+	console.log("Searching", dir);
+	listDirectory(dir, function (err, info) {
+		if (err)
+			return callback(err);
+		if (info.objects.length) {
+			console.log("Contains " + info.objects.length + " images");
+		}
+		async.forEachSeries(info.dirs, function (subdir, callback) {
+			var pref = removePrefix(config.AWS.prefix, subdir.Prefix);
+			setTimeout(findAlbums.bind(null, pref, callback), 0);
+		}, callback);
+	});
+}
+
 function updateAlbum(dir, callback) {
 	var needThumbs, allImages;
 	async.waterfall([
@@ -281,6 +298,10 @@ function _consist(obj) {
 
 function pluralize(n, noun) {
 	return n + ' ' + noun + (n==1 ? '' : 's');
+}
+
+function removePrefix(prefix, str) {
+	return str.slice(prefix.length) == prefix ? str.slice(prefix.length) : str;
 }
 
 function objectMD5(obj) {
