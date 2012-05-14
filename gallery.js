@@ -118,7 +118,7 @@ function scanAlbum(dir, callback) {
 var thumbnailConfHash;
 
 function imageMeta(image, albumDir) {
-	var info = {md5: image.ETag.replace(/"/g, '').toLowerCase()};
+	var info = {md5: objectMD5(image)};
 	info.ext = path.extname(image.Key);
 	info.localPath = path.join(config.scratchDir, info.md5 + info.ext);
 
@@ -281,6 +281,10 @@ function _consist(obj) {
 
 function pluralize(n, noun) {
 	return n + ' ' + noun + (n==1 ? '' : 's');
+}
+
+function objectMD5(obj) {
+	return (obj.ETag || obj.etag).replace(/"/g, '').toLowerCase();
 }
 
 // Glue
