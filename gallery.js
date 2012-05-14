@@ -246,10 +246,10 @@ function _fetchListing(options, lister) {
 			return lister.emit('error', err);
 		var items = listing.Contents;
 		if (items)
-			lister.emit('objects', items);
+			lister.emit('objects', items instanceof Array ? items : [items]);
 		var dirs = listing.CommonPrefixes;
 		if (dirs)
-			lister.emit('dirs', dirs);
+			lister.emit('dirs', dirs instanceof Array ? dirs : [dirs]);
 		if (listing.IsTruncated != 'true')
 			return lister.emit('end');
 		options.marker = listing.NextMarker;
