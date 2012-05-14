@@ -54,27 +54,29 @@ function updateAlbum(dir, callback) {
 	function (next) {
 		var index = buildIndex(allImages, dir);
 		checkIndex(index, function (err, upToDate) {
-			if (upToDate)
+			if (err)
+				next(err);
+			else if (upToDate)
 				next(null);
-			else {
-				var buf = new Buffer(JSON.stringify(index.object), 'UTF-8');
-				var headers = {
-					'Content-Type': 'application/json;charset=UTF-8',
-					'Cache-Control': 'max-age=3600',
-					'x-amz-storage-class': 'REDUCED_REDUNDANCY',
-				};
-				headers[indexHashHeader] = index.hash;
-				s3.putBuffer(index.path, buf, 'public-read', headers, function (err) {
-					if (err)
-						return next(err);
-					console.log('Updated album index.');
-					next(null);
-				});
-			}
+			else
+				uploadIndex(index, next);
+		});
+	},
+	function (next) {
+		var html = buildHtml(dir);
+		checkHtml(html, dir, function (err, upToDate) {
+			if (err)
+				next(err);
+			else if (upToDate)
+				next(null);
+			else
+				uploadHtml(html, dir, next);
 		});
 	},
 	], callback);
 }
+
+// index.js
 
 var indexHashHeader = 'x-amz-meta-index-hash';
 
@@ -102,6 +104,46 @@ function checkIndex(index, callback) {
 		callback(null, headers[indexHashHeader] == index.hash);
 	});
 }
+
+function uploadIndex(index, callback) {
+	var buf = new Buffer(JSON.stringify(index.object), 'UTF-8');
+	var headers = {
+		'Content-Type': 'application/json;charset=UTF-8',
+		'Cache-Control': 'max-age=3600',
+		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
+	};
+	headers[indexHashHeader] = index.hash;
+	s3.putBuffer(index.path, buf, 'public-read', headers, callback);
+}
+
+// index.html
+
+function buildHtml(dir) {
+	var level = dir.match(/[^\/]\//g).length;
+	var title = path.basename(dir);
+	var jsPath = new Array(level + 1).join('../') + 'gallery.js';
+	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n<script src="' + encodeURI(jsPath) + '"></script>';
+	return new Buffer(html, 'UTF-8');
+}
+
+function checkHtml(html, dir, callback) {
+	s3.head(config.AWS.prefix + dir + 'index.html', function (err, meta) {
+		if (err)
+			return callback(null, false);
+		var md5 = crypto.createHash('md5').update(html).digest('hex');
+		return callback(null, md5 == objectMD5(meta));
+	});
+}
+
+function uploadHtml(html, dir, callback) {
+	var headers = {
+		'Content-Type': 'text/html;charset=UTF-8',
+		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
+	};
+	s3.putBuffer(config.AWS.prefix + dir + 'index.html', html, 'public-read', headers, callback);
+}
+
+// Album inspection
 
 function scanAlbum(dir, callback) {
 	async.parallel({
@@ -159,6 +201,8 @@ function isDownloaded(image, callback) {
 		callback(!!err);
 	});
 }
+
+// Album mutation
 
 function downloadImage(image, callback) {
 	var tmp = tempFilename(image.meta.ext);
@@ -302,6 +346,11 @@ function pluralize(n, noun) {
 
 function removePrefix(prefix, str) {
 	return str.slice(prefix.length) == prefix ? str.slice(prefix.length) : str;
+}
+
+var htmlEscapes = {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'};
+function htmlEscape(text) {
+	return text.replace(/(<|>|&|")/g, function (c) { return htmlEscapes[c]; });
 }
 
 function objectMD5(obj) {
