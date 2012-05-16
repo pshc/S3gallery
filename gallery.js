@@ -101,7 +101,7 @@ function buildIndex(allImages, albumPath) {
 	var object = {
 		images: imgs,
 	};
-	var js = config.AWS.prefix + albumPath + 'index.js';
+	var js = config.AWS.prefix + 'thumbs/' + albumPath + 'index.js';
 	return {object: object, hash: hash.digest('hex'), path: js, version: version};
 }
 
@@ -132,7 +132,7 @@ function buildHtml(dir) {
 	var jsPath = new Array(level + 1).join('../') + 'gallery.js';
 	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n<script src="' + encodeURI(jsPath) + '"></script>';
 	var buf = new Buffer(html, 'UTF-8');
-	var s3path = config.AWS.prefix + dir + 'index.html';
+	var s3path = config.AWS.prefix + 'thumbs/' + dir + 'index.html';
 	return {buf: buf, path: s3path};
 }
 
