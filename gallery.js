@@ -64,13 +64,13 @@ function updateAlbum(dir, callback) {
 	},
 	function (next) {
 		var html = buildHtml(dir);
-		checkHtml(html, dir, function (err, upToDate) {
+		checkHtml(html, function (err, upToDate) {
 			if (err)
 				next(err);
 			else if (upToDate)
 				next(null);
 			else
-				uploadHtml(html, dir, next);
+				uploadHtml(html, next);
 		});
 	},
 	], callback);
@@ -123,24 +123,26 @@ function buildHtml(dir) {
 	var title = path.basename(dir);
 	var jsPath = new Array(level + 1).join('../') + 'gallery.js';
 	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n<script src="' + encodeURI(jsPath) + '"></script>';
-	return new Buffer(html, 'UTF-8');
+	var buf = new Buffer(html, 'UTF-8');
+	var s3path = config.AWS.prefix + dir + 'index.html';
+	return {buf: buf, path: s3path};
 }
 
-function checkHtml(html, dir, callback) {
-	s3.head(config.AWS.prefix + dir + 'index.html', function (err, meta) {
+function checkHtml(html, callback) {
+	s3.head(html.path, function (err, meta) {
 		if (err)
 			return callback(null, false);
-		var md5 = crypto.createHash('md5').update(html).digest('hex');
+		var md5 = crypto.createHash('md5').update(html.buf).digest('hex');
 		return callback(null, md5 == objectMD5(meta));
 	});
 }
 
-function uploadHtml(html, dir, callback) {
+function uploadHtml(html, callback) {
 	var headers = {
 		'Content-Type': 'text/html;charset=UTF-8',
 		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
 	};
-	s3.putBuffer(config.AWS.prefix + dir + 'index.html', html, 'public-read', headers, callback);
+	s3.putBuffer(html.path, html.buf, 'public-read', headers, callback);
 }
 
 // Album inspection
