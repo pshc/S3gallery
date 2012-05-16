@@ -22,6 +22,8 @@ function findAlbums(dir, callback) {
 		}
 		async.forEachSeries(info.dirs, function (subdir, callback) {
 			var pref = removePrefix(config.AWS.prefix, subdir.Prefix);
+			if (pref.match(/thumbs/))
+				return callback(null);
 			setTimeout(findAlbums.bind(null, pref, callback), 0);
 		}, callback);
 	});
