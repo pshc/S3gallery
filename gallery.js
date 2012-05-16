@@ -58,8 +58,12 @@ function updateAlbum(dir, callback) {
 				next(err);
 			else if (upToDate)
 				next(null);
-			else
-				uploadIndex(index, next);
+			else {
+				console.log('Updating index..');
+				uploadIndex(index, function (err) {
+					next(err);
+				});
+			}
 		});
 	},
 	function (next) {
@@ -69,8 +73,12 @@ function updateAlbum(dir, callback) {
 				next(err);
 			else if (upToDate)
 				next(null);
-			else
-				uploadHtml(html, next);
+			else {
+				console.log('Updating HTML..');
+				uploadHtml(html, function (err) {
+					next(err);
+				});
+			}
 		});
 	},
 	], callback);
