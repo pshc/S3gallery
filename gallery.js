@@ -117,11 +117,8 @@ function checkIndex(index, callback) {
 
 function uploadIndex(index, callback) {
 	var buf = new Buffer(JSON.stringify(index.object), 'UTF-8');
-	var headers = {
-		'Content-Type': 'application/json;charset=UTF-8',
-		'Cache-Control': 'max-age=3600',
-		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
-	};
+	var headers = reducedHeaders('application/json;charset=UTF-8');
+	headers['Cache-Control'] = 'max-age=3600';
 	headers[indexHashHeader] = index.hash;
 	s3.putBuffer(index.path, buf, 'public-read', headers, callback);
 }
@@ -148,10 +145,7 @@ function checkHtml(html, callback) {
 }
 
 function uploadHtml(html, callback) {
-	var headers = {
-		'Content-Type': 'text/html;charset=UTF-8',
-		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
-	};
+	var headers = reducedHeaders('text/html;charset=UTF-8');
 	s3.putBuffer(html.path, html.buf, 'public-read', headers, callback);
 }
 
@@ -266,10 +260,7 @@ function thumbnailImage(image, callback) {
 function uploadThumbnail(localPath, image, callback) {
 	var dest = image.meta.thumbRemotePath;
 	console.log("Uploading " + dest + "...");
-	var headers = {
-		'Content-Type': 'image/jpeg',
-		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
-	};
+	var headers = reducedHeaders('image/jpeg');
 	s3.putFile(dest, localPath, 'public-read', headers, callback);
 }
 
@@ -367,6 +358,13 @@ function htmlEscape(text) {
 
 function objectMD5(obj) {
 	return (obj.ETag || obj.etag).replace(/"/g, '').toLowerCase();
+}
+
+function reducedHeaders(mime) {
+	return {
+		'Content-Type': mime,
+		'x-amz-storage-class': 'REDUCED_REDUNDANCY',
+	};
 }
 
 // Glue
