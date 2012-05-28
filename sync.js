@@ -285,7 +285,8 @@ function thumbnailImage(image, callback) {
 	var tmp = tempFilename(image.meta.ext);
 	var args = [image.meta.localPath];
 	var cfg = config.visual.thumbnail;
-	args.push('-thumbnail', cfg.size);
+	args.push('-thumbnail', cfg.size + '^');
+	args.push('-extent', cfg.size);
 	args.push('-auto-orient');
 	args.push('-colorspace', 'sRGB');
 	args.push('-strip');
