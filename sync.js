@@ -77,7 +77,7 @@ function updateAlbum(dir, callback) {
 	},
 	function (next) {
 		var html = buildHtml(dir);
-		albumURL = 'http://' + config.AWS.bucket + '/' + html.path;
+		albumURL = 'http://' + config.AWS.bucket + '/' + config.AWS.prefix + 'thumbs/' + dir;
 		checkHtml(html, function (err, upToDate) {
 			if (err)
 				next(err);
