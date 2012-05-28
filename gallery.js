@@ -30,12 +30,16 @@ function addStyles() {
 		return;
 	$('<link rel=stylesheet>').attr('href', state.rootPath + 'plain.css').appendTo('head');
 	var dims = config.thumbnail.size.match(/^(\d+)x(\d+)$/);
-	function halfSize(i) {
-		return Math.floor(parseInt(dims[i], 10));
+	function adjustedSize(i) {
+		var size = Math.floor(parseInt(dims[i], 10));
+		if (window.devicePixelRatio > 1)
+			size /= window.devicePixelRatio;
+		return Math.floor(size);
 	}
 	// Use configuration's thumbnail dimensions for cell size and vertical alignment hack
-	var rule = 'width: ' + halfSize(1) + 'px; height: ' + halfSize(2) + 'px; line-height: ' + halfSize(2) + 'px;';
-	$('<style id="thumb-style">div, figure { ' + rule + ' }</style>').appendTo('head');
+	var width = adjustedSize(1), height = adjustedSize(2);
+	var rule = 'width: ' + width + 'px; height: ' + height + 'px; line-height: ' + height + 'px;';
+	$('<style id="thumb-style">div, figure, img { ' + rule + ' }</style>').appendTo('head');
 }
 
 function requestIndex() {

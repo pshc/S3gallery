@@ -148,6 +148,7 @@ var jQueryJs = 'jquery-1.7.2.min.js';
 function buildHtml(dir) {
 	var title = path.basename(dir);
 	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n'
+	html += '<meta name=viewport content="width=device-width; minimum-scale=1.0; maximum-scale=1.0">\n';
 	html += '<body><noscript>Javascript required.</noscript></body>\n';
 	html += '<script>var config = ' + JSON.stringify(config.visual) + ';</script>\n';
 	var level = dir.match(/[^\/]\//g).length;

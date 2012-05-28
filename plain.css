@@ -16,3 +16,18 @@ img {
 strong {
 	color: red;
 }
+@media screen and (max-device-width: 320px) {
+	body {
+		margin: 0;
+		padding: 0;
+	}
+	div {
+		margin: -1px;
+		padding: 0;
+	}
+	figure, img {
+		margin: 0;
+		padding: 0;
+		border-radius: 0;
+	}
+}
