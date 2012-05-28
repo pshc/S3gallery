@@ -49,7 +49,7 @@ function updateAlbum(dir, callback) {
 		var n = album.oldThumbs.length;
 		if (n)
 			console.log('Deleting ' + pluralize(n, 'old thumbnail') + '.');
-		async.forEachSeries(album.oldThumbs, function (thumb, cb) {
+		forEachNParallel(4, album.oldThumbs, function (thumb, cb) {
 			s3.del(config.AWS.prefix + 'thumbs/' + dir + thumb, cb);
 		}, next);
 	},
@@ -57,7 +57,7 @@ function updateAlbum(dir, callback) {
 		var n = album.needThumbs.length;
 		if (n)
 			console.log('Thumbnailing ' + pluralize(n, 'image') + '.');
-		async.forEachSeries(album.needThumbs, thumbnailAndUploadImage, next);
+		forEachNParallel(3, album.needThumbs, thumbnailAndUploadImage, next);
 	},
 	function (next) {
 		var index = buildIndex(album, dir);
@@ -282,7 +282,7 @@ function thumbnailAndUploadImage(image, callback) {
 }
 
 function thumbnailImage(image, callback) {
-	console.log("Thumbnailing " + image.meta.localPath + "...");
+	//console.log("Thumbnailing " + image.meta.localPath + "...");
 	var tmp = tempFilename(image.meta.ext);
 	var args = [image.meta.localPath];
 	var cfg = config.visual.thumbnail;
@@ -418,6 +418,47 @@ function _consist(obj) {
 	}
 }
 
+function forEachNParallel(n, items, operation, callback) {
+	var index = 0, pending = [], error = null, done = false;
+
+	function processOne() {
+		if (error || index >= items.length) {
+			finish();
+			return;
+		}
+		if (pending.length >= n)
+			return;
+		var thisIndex = index++;
+		pending.push(thisIndex);
+		operation(items[thisIndex], function (err) {
+			var pos = pending.indexOf(thisIndex);
+			if (pos < 0) {
+				error = "Callback called twice.";
+				finish();
+				return;
+			}
+			pending.splice(pos, 1);
+			if (err)
+				error = err;
+			processOne();
+		});
+		setTimeout(processOne, 0);
+	}
+
+	function finish() {
+		if (pending.length)
+			return;
+		if (!error && index < items.length)
+			return;
+		if (done)
+			throw new Error("forEachN completed twice?!");
+		done = true;
+		callback(error);
+	}
+
+	processOne();
+}
+
 function pluralize(n, noun) {
 	return n + ' ' + noun + (n==1 ? '' : 's');
 }
@@ -465,7 +506,7 @@ function setup(callback) {
 				if (file.match(/^tmp_/))
 					garbage.push(path.join(dir, file));
 			});
-			async.forEachSeries(garbage, fs.unlink.bind(fs), callback);
+			forEachNParallel(5, garbage, fs.unlink.bind(fs), callback);
 		});
 	}
 }
