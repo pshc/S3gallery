@@ -30,17 +30,15 @@ function findAlbums(dir, callback) {
 }
 
 function updateAlbum(dir, callback) {
-	var needThumbs, allImages;
+	var album, albumURL, changed;
 	async.waterfall([
 	function (next) {
 		scanAlbum(dir, next);
 	},
-	function (thumbs, images, next) {
-		needThumbs = thumbs;
-		allImages = images;
-
+	function (scan, next) {
+		album = scan;
 		console.log('Album: ' + dir);
-		async.filterSeries(needThumbs, isDownloaded, function (needDownloads) {
+		async.filterSeries(album.needThumbs, isDownloaded, function (needDownloads) {
 			var n = needDownloads.length;
 			if (n)
 				console.log('Downloading ' + pluralize(n, 'image') + '.');
@@ -48,19 +46,20 @@ function updateAlbum(dir, callback) {
 		});
 	},
 	function (next) {
-		var n = needThumbs.length;
+		var n = album.needThumbs.length;
 		if (n)
 			console.log('Thumbnailing ' + pluralize(n, 'image') + '.');
-		async.forEachSeries(needThumbs, thumbnailAndUploadImage, next);
+		async.forEachSeries(album.needThumbs, thumbnailAndUploadImage, next);
 	},
 	function (next) {
-		var index = buildIndex(allImages, dir);
+		var index = buildIndex(album, dir);
 		checkIndex(index, function (err, upToDate) {
 			if (err)
 				next(err);
 			else if (upToDate)
 				next(null);
 			else {
+				changed = true;
 				console.log('Updating index..');
 				uploadIndex(index, function (err) {
 					next(err);
@@ -70,18 +69,25 @@ function updateAlbum(dir, callback) {
 	},
 	function (next) {
 		var html = buildHtml(dir);
+		albumURL = 'http://' + config.AWS.bucket + '/' + html.path;
 		checkHtml(html, function (err, upToDate) {
 			if (err)
 				next(err);
 			else if (upToDate)
 				next(null);
 			else {
+				changed = true;
 				console.log('Updating HTML..');
 				uploadHtml(html, function (err) {
 					next(err);
 				});
 			}
 		});
+	},
+	function (next) {
+		if (changed)
+			console.log('Album updated:', albumURL);
+		next(null);
 	},
 	], callback);
 }
@@ -90,18 +96,22 @@ function updateAlbum(dir, callback) {
 
 var indexHashHeader = 'x-amz-meta-index-hash';
 
-function buildIndex(allImages, albumPath) {
+function buildIndex(album, albumPath) {
 	var version = '1';
 	var hash = crypto.createHash('md5').update(version + '\n');
 	var imgs = [];
-	allImages.forEach(function (image) {
+	album.allImages.forEach(function (image) {
 		var name = path.basename(image.Key);
 		imgs.push({full: name, thumb: image.meta.thumbName});
 		hash.update(name);
 		hash.update(image.meta.thumbName);
 	});
+	album.subdirs.forEach(function (dir) {
+		hash.update(dir.path);
+	});
 	var object = {
 		images: imgs,
+		dirs: album.subdirs,
 	};
 	var js = config.AWS.prefix + 'thumbs/' + albumPath + 'index.js';
 	return {object: object, hash: hash.digest('hex'), path: js, version: version};
@@ -125,11 +135,21 @@ function uploadIndex(index, callback) {
 
 // index.html
 
+var jQueryJs = 'jquery-1.7.2.min.js';
+
 function buildHtml(dir) {
-	var level = dir.match(/[^\/]\//g).length;
 	var title = path.basename(dir);
-	var jsPath = new Array(level + 1).join('../') + 'gallery.js';
-	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n<script src="' + encodeURI(jsPath) + '"></script>';
+	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n'
+	html += '<body><noscript>Javascript required.</noscript></body>\n';
+	html += '<script>var config = ' + JSON.stringify(config.visual) + ';</script>\n';
+	var level = dir.match(/[^\/]\//g).length;
+	var jsPath = new Array(level + 1).join('../');
+	var scripts = [jQueryJs, 'gallery.js'];
+	scripts.forEach(function (js) {
+		if (!js.match(/^https?:\/\//))
+			js = jsPath + js;
+		html += '<script src="' + encodeURI(js) + '"></script>\n';
+	});
 	var buf = new Buffer(html, 'UTF-8');
 	var s3path = config.AWS.prefix + 'thumbs/' + dir + 'index.html';
 	return {buf: buf, path: s3path};
@@ -176,7 +196,14 @@ function scanAlbum(dir, callback) {
 				return;
 			needThumbnails.push(image);
 		});
-		callback(null, needThumbnails, allImages);
+		var subdirs = listings.images.dirs.map(function (subdir) {
+			return {path: removePrefix(config.AWS.prefix + dir, subdir.Prefix)};
+		});
+		callback(null, {
+			needThumbs: needThumbnails,
+			allImages: allImages,
+			subdirs: subdirs,
+		});
 	});
 }
 
@@ -190,7 +217,7 @@ function imageMeta(image, albumDir) {
 	// Generate thumbnail name based on all relevant configuration and
 	// image data so that we can easily detect stale thumbnails
 	if (!thumbnailConfHash)
-		thumbnailConfHash = consistentObjectHash(config.thumbnail);
+		thumbnailConfHash = consistentObjectHash(config.visual.thumbnail);
 	var hash = crypto.createHash('md5');
 	hash.update(thumbnailConfHash);
 	hash.update(info.md5);
@@ -244,11 +271,12 @@ function thumbnailImage(image, callback) {
 	console.log("Thumbnailing " + image.meta.localPath + "...");
 	var tmp = tempFilename(image.meta.ext);
 	var args = [image.meta.localPath];
-	args.push('-thumbnail', config.thumbnail.size);
+	var cfg = config.visual.thumbnail;
+	args.push('-thumbnail', cfg.size);
 	args.push('-auto-orient');
 	args.push('-colorspace', 'sRGB');
 	args.push('-strip');
-	args.push('-quality', config.thumbnail.quality);
+	args.push('-quality', cfg.quality);
 	args.push('jpg:' + tmp);
 	imagemagick.convert(args, function (err) {
 		if (err)
@@ -262,6 +290,38 @@ function uploadThumbnail(localPath, image, callback) {
 	console.log("Uploading " + dest + "...");
 	var headers = reducedHeaders('image/jpeg');
 	s3.putFile(dest, localPath, 'public-read', headers, callback);
+}
+
+// Support files
+
+var supportFiles = ['gallery.js', 'plain.css', jQueryJs];
+var supportMimes = {
+	'.js': 'application/javascript',
+	'.css': 'text/css',
+};
+
+function uploadSupportFiles(callback) {
+	async.forEach(supportFiles, function (file, callback) {
+		var awsFile = config.AWS.prefix + 'thumbs/' + file;
+		s3.head(awsFile, function (err, meta) {
+			if (err)
+				return upload();
+			fs.readFile(file, function (err, buf) {
+				if (err)
+					return callback(err);
+				var md5 = crypto.createHash('md5').update(buf).digest('hex');
+				if (md5 != objectMD5(meta))
+					upload();
+				else
+					callback(null);
+			});
+		});
+		function upload() {
+			console.log('Uploading ' + file + '...');
+			var headers = reducedHeaders(supportMimes[path.extname(file)]);
+			s3.putFile(awsFile, file, 'public-read', headers, callback);
+		}
+	}, callback);
 }
 
 // Helpers
@@ -348,7 +408,7 @@ function pluralize(n, noun) {
 }
 
 function removePrefix(prefix, str) {
-	return str.slice(prefix.length) == prefix ? str.slice(prefix.length) : str;
+	return str.slice(0, prefix.length) == prefix ? str.slice(prefix.length) : str;
 }
 
 var htmlEscapes = {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'};
@@ -396,7 +456,10 @@ function setup(callback) {
 }
 
 if (require.main === module) {
-	setup(function (err) {
+	async.series([
+		setup,
+		uploadSupportFiles,
+	], function (err) {
 		if (err)
 			throw err;
 		updateAlbum(config.testAlbum, function (err) {
