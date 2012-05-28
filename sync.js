@@ -46,6 +46,14 @@ function updateAlbum(dir, callback) {
 		});
 	},
 	function (next) {
+		var n = album.oldThumbs.length;
+		if (n)
+			console.log('Deleting ' + pluralize(n, 'old thumbnail') + '.');
+		async.forEachSeries(album.oldThumbs, function (thumb, cb) {
+			s3.del(config.AWS.prefix + 'thumbs/' + dir + thumb, cb);
+		}, next);
+	},
+	function (next) {
 		var n = album.needThumbs.length;
 		if (n)
 			console.log('Thumbnailing ' + pluralize(n, 'image') + '.');
@@ -184,7 +192,8 @@ function scanAlbum(dir, callback) {
 		// Find photos without up-to-date thumbnails
 		listings.thumbs.objects.forEach(function (thumb) {
 			var thumbName = path.basename(thumb.Key);
-			thumbs[thumbName] = new Date(thumb.LastModified);
+			if (thumbName.match(/_\w{6}\.jpg$/i))
+				thumbs[thumbName] = new Date(thumb.LastModified);
 		});
 		listings.images.objects.forEach(function (image) {
 			if (!path.extname(image.Key).match(config.validExtensions))
@@ -192,8 +201,11 @@ function scanAlbum(dir, callback) {
 			image.meta = imageMeta(image, dir);
 			allImages.push(image);
 			var thumbDate = thumbs[image.meta.thumbName];
-			if (thumbDate && thumbDate > new Date(image.LastModified))
-				return;
+			if (thumbDate) {
+				delete thumbs[image.meta.thumbName];
+				if (thumbDate > new Date(image.LastModified))
+					return;
+			}
 			needThumbnails.push(image);
 		});
 		var subdirs = listings.images.dirs.map(function (subdir) {
@@ -203,6 +215,7 @@ function scanAlbum(dir, callback) {
 			needThumbs: needThumbnails,
 			allImages: allImages,
 			subdirs: subdirs,
+			oldThumbs: Object.keys(thumbs),
 		});
 	});
 }
