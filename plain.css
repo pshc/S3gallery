@@ -1,3 +1,10 @@
+a {
+	text-decoration: none;
+	color: #333;
+}
+body {
+	background-color: #222;
+}
 div, figure {
 	float: left;
 	margin: 5px;
@@ -6,7 +13,8 @@ div, figure {
 	vertical-align: middle;
 }
 div {
-	border: 1px solid #aaa;
+	background-color: white;
+	border: 1px solid white;
 	border-radius: 10px;
 	margin: 4px;
 }
