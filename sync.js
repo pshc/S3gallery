@@ -490,7 +490,9 @@ function forEachNParallel(n, items, operation, callback) {
 			return;
 		var thisIndex = index++;
 		pending.push(thisIndex);
+		var instantReturn = false;
 		operation(items[thisIndex], function (err) {
+			instantReturn = true;
 			var pos = pending.indexOf(thisIndex);
 			if (pos < 0) {
 				error = "Callback called twice.";
@@ -502,16 +504,15 @@ function forEachNParallel(n, items, operation, callback) {
 				error = err;
 			processOne();
 		});
-		setTimeout(processOne, 0);
+		if (!instantReturn)
+			setTimeout(processOne, 0);
 	}
 
 	function finish() {
-		if (pending.length)
+		if (done || pending.length)
 			return;
 		if (!error && index < items.length)
 			return;
-		if (done)
-			throw new Error("forEachN completed twice?!");
 		done = true;
 		callback(error);
 	}
