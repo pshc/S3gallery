@@ -245,26 +245,28 @@ function scanAlbum(dir, callback) {
 	});
 }
 
-var thumbnailConfHash;
+var confHashes = {};
 
 function imageMeta(image, albumDir) {
 	var info = {md5: objectMD5(image)};
 	info.ext = path.extname(image.Key);
 	info.localPath = path.join(config.scratchDir, info.md5 + info.ext);
 
-	// Generate thumbnail name based on all relevant configuration and
-	// image data so that we can easily detect stale thumbnails
-	if (!thumbnailConfHash)
-		thumbnailConfHash = consistentObjectHash(config.visual.thumbnail);
-	var hash = crypto.createHash('md5');
-	hash.update(thumbnailConfHash);
-	hash.update(info.md5);
-	hash = hash.digest('hex').slice(0, 6);
-	var prefix = path.basename(image.Key).slice(0, -info.ext.length);
-	info.thumbName = prefix + '_thumb_' + hash + '.jpg';
-	info.thumbRemotePath = config.AWS.prefix + 'thumbs/' + albumDir + info.thumbName;
-	info.medName = prefix + '_med_' + hash + '.jpg';
-	info.medRemotePath = config.AWS.prefix + 'thumbs/' + albumDir + info.medName;
+	derivedKinds.forEach(function (kind) {
+		// Generate thumbnail name based on all relevant configuration and
+		// image data so that we can easily detect stale thumbnails
+		if (!confHashes[kind])
+			confHashes[kind] = consistentObjectHash(config.visual[kind]);
+
+		var hash = crypto.createHash('md5');
+		hash.update(confHashes[kind]);
+		hash.update(info.md5);
+		hash = hash.digest('hex').slice(0, 6);
+		var prefix = path.basename(image.Key).slice(0, -info.ext.length);
+		var name = prefix + '_' + kind + '_' + hash + '.jpg';
+		info[kind+'Name'] = name;
+		info[kind+'RemotePath'] = config.AWS.prefix + 'thumbs/' + albumDir + name;
+	});
 
 	return info;
 }
@@ -310,7 +312,7 @@ function thumbnailAndUploadImage(image, callback) {
 function thumbnailImage(filename, callback) {
 	var tmp = tempJpegFilename();
 	var args = [filename];
-	var cfg = config.visual.thumbnail;
+	var cfg = config.visual.thumb;
 	var size = assembleDimensions(cfg.size);
 	args.push('-thumbnail', size + '^');
 	args.push('-extent', size);
@@ -340,7 +342,7 @@ function mediumResizeAndUploadImage(image, callback) {
 function mediumResizeImage(filename, callback) {
 	var tmp = tempJpegFilename();
 	var args = [filename];
-	var cfg = config.visual.medium;
+	var cfg = config.visual.med;
 	args.push('-auto-orient');
 	args.push('-gamma', '0.454545');
 	args.push('-filter', 'Lagrange');

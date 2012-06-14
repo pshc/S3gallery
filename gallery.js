@@ -29,7 +29,7 @@ function addStyles() {
 	if ($('#thumb-style').length)
 		return;
 	$('<link rel=stylesheet>').attr('href', state.rootPath + 'plain.css').appendTo('head');
-	var dims = config.thumbnail.size;
+	var dims = config.thumb.size;
 	function adjustSize(size) {
 		if (window.devicePixelRatio > 1)
 			size /= window.devicePixelRatio;
