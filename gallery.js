@@ -29,15 +29,14 @@ function addStyles() {
 	if ($('#thumb-style').length)
 		return;
 	$('<link rel=stylesheet>').attr('href', state.rootPath + 'plain.css').appendTo('head');
-	var dims = config.thumbnail.size.match(/^(\d+)x(\d+)$/);
-	function adjustedSize(i) {
-		var size = Math.floor(parseInt(dims[i], 10));
+	var dims = config.thumbnail.size;
+	function adjustSize(size) {
 		if (window.devicePixelRatio > 1)
 			size /= window.devicePixelRatio;
 		return Math.floor(size);
 	}
 	// Use configuration's thumbnail dimensions for cell size and vertical alignment hack
-	var width = adjustedSize(1), height = adjustedSize(2);
+	var width = adjustSize(dims[0]), height = adjustSize(dims[1]);
 	var rule = 'width: ' + width + 'px; height: ' + height + 'px; line-height: ' + height + 'px;';
 	$('<style id="thumb-style">div, figure, img { ' + rule + ' }</style>').appendTo('head');
 }

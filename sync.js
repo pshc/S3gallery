@@ -285,8 +285,9 @@ function thumbnailImage(filename, callback) {
 	var tmp = tempJpegFilename();
 	var args = [filename];
 	var cfg = config.visual.thumbnail;
-	args.push('-thumbnail', cfg.size + '^');
-	args.push('-extent', cfg.size);
+	var size = assembleDimensions(cfg.size);
+	args.push('-thumbnail', size + '^');
+	args.push('-extent', size);
 	args.push('-auto-orient');
 	args.push('-colorspace', 'sRGB');
 	args.push('-strip');
@@ -339,6 +340,10 @@ function uploadSupportFiles(callback) {
 }
 
 // Helpers
+
+function assembleDimensions(dims) {
+	return dims.join ? dims.join('x') : dims + '@';
+}
 
 function progressDownload(stream, len, dest, callback) {
 	var bar = new progress('[:bar] :percent :etas', {total: len, width: 30, incomplete: ' '});
