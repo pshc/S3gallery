@@ -38,7 +38,7 @@ function updateAlbum(dir, callback) {
 	function (scan, next) {
 		album = scan;
 		console.log('Album: ' + dir);
-		async.filterSeries(album.needThumbs, isDownloaded, function (needDownloads) {
+		async.filterSeries(album.needResize, isDownloaded, function (needDownloads) {
 			var n = needDownloads.length;
 			if (n)
 				console.log('Downloading ' + pluralize(n, 'image') + '.');
@@ -46,18 +46,23 @@ function updateAlbum(dir, callback) {
 		});
 	},
 	function (next) {
-		var n = album.oldThumbs.length;
+		var n = album.oldDerived.length;
 		if (n)
 			console.log('Deleting ' + pluralize(n, 'old thumbnail') + '.');
-		forEachNParallel(4, album.oldThumbs, function (thumb, cb) {
+		forEachNParallel(4, album.oldDerived, function (thumb, cb) {
 			s3.del(config.AWS.prefix + 'thumbs/' + dir + thumb, cb);
 		}, next);
 	},
 	function (next) {
-		var n = album.needThumbs.length;
+		var n = album.needResize.length;
 		if (n)
 			console.log('Thumbnailing ' + pluralize(n, 'image') + '.');
-		forEachNParallel(3, album.needThumbs, thumbnailAndUploadImage, next);
+		forEachNParallel(3, album.needResize, function (image, cb) {
+			async.series([
+				thumbnailAndUploadImage.bind(null, image),
+				mediumResizeAndUploadImage.bind(null, image),
+			], cb);
+		}, next);
 	},
 	function (next) {
 		var index = buildIndex(album, dir);
@@ -110,9 +115,10 @@ function buildIndex(album, albumPath) {
 	var imgs = [];
 	album.allImages.forEach(function (image) {
 		var name = path.basename(image.Key);
-		imgs.push({full: name, thumb: image.meta.thumbName});
+		imgs.push({full: name, thumb: image.meta.thumbName, med: image.meta.medName});
 		hash.update(name);
 		hash.update(image.meta.thumbName);
+		hash.update(image.meta.medName);
 	});
 	album.subdirs.forEach(function (dir) {
 		hash.update(dir.path);
@@ -180,6 +186,8 @@ function uploadHtml(html, callback) {
 
 // Album inspection
 
+var derivedKinds = ['thumb', 'med'];
+
 function scanAlbum(dir, callback) {
 	async.parallel({
 		images: listDirectory.bind(null, dir),
@@ -187,36 +195,52 @@ function scanAlbum(dir, callback) {
 	}, function (err, listings) {
 		if (err)
 			return callback(err);
-		var thumbs = {};
-		var needThumbnails = [];
+		var derived = {};
+		derivedKinds.forEach(function (kind) {
+			derived[kind] = {};
+		});
+		var needResize = [];
 		var allImages = [];
 		// Find photos without up-to-date thumbnails
 		listings.thumbs.objects.forEach(function (thumb) {
 			var thumbName = path.basename(thumb.Key);
-			if (thumbName.match(/_\w{6}\.jpg$/i))
-				thumbs[thumbName] = new Date(thumb.LastModified);
+			var match = thumbName.match(/_(\w+)_\w{6}\.jpg$/i);
+			if (!match)
+				return;
+			var kindMap = derived[match[1]];
+			if (kindMap)
+				kindMap[thumbName] = new Date(thumb.LastModified);
 		});
 		listings.images.objects.forEach(function (image) {
 			if (!path.extname(image.Key).match(config.validExtensions))
 				return;
 			image.meta = imageMeta(image, dir);
 			allImages.push(image);
-			var thumbDate = thumbs[image.meta.thumbName];
-			if (thumbDate) {
-				delete thumbs[image.meta.thumbName];
-				if (thumbDate > new Date(image.LastModified))
-					return;
-			}
-			needThumbnails.push(image);
+			var resizeNeeded = false;
+			derivedKinds.forEach(function (kind) {
+				var name = image.meta[kind + 'Name'];
+				var kindMap = derived[kind];
+				var date = kindMap[name];
+				if (date) {
+					delete kindMap[name];
+					if (date > new Date(image.LastModified))
+						return;
+				}
+				resizeNeeded = true;
+			});
+			if (resizeNeeded)
+				needResize.push(image);
 		});
 		var subdirs = listings.images.dirs.map(function (subdir) {
 			return {path: removePrefix(config.AWS.prefix + dir, subdir.Prefix)};
 		});
+
+		var old = Object.keys(derived.thumb).concat(Object.keys(derived.med));
 		callback(null, {
-			needThumbs: needThumbnails,
+			needResize: needResize,
 			allImages: allImages,
 			subdirs: subdirs,
-			oldThumbs: Object.keys(thumbs),
+			oldDerived: old,
 		});
 	});
 }
@@ -237,8 +261,10 @@ function imageMeta(image, albumDir) {
 	hash.update(info.md5);
 	hash = hash.digest('hex').slice(0, 6);
 	var prefix = path.basename(image.Key).slice(0, -info.ext.length);
-	info.thumbName = prefix + '_' + hash + '.jpg';
+	info.thumbName = prefix + '_thumb_' + hash + '.jpg';
 	info.thumbRemotePath = config.AWS.prefix + 'thumbs/' + albumDir + info.thumbName;
+	info.medName = prefix + '_med_' + hash + '.jpg';
+	info.medRemotePath = config.AWS.prefix + 'thumbs/' + albumDir + info.medName;
 
 	return info;
 }
@@ -274,7 +300,7 @@ function thumbnailAndUploadImage(image, callback) {
 	thumbnailImage(image.meta.localPath, function (err, tmp) {
 		if (err)
 			return callback(err);
-		uploadThumbnail(tmp, image, function (err) {
+		uploadImage(tmp, image.meta.thumbRemotePath, function (err) {
 			fs.unlink(tmp);
 			callback(err);
 		});
@@ -300,8 +326,36 @@ function thumbnailImage(filename, callback) {
 	});
 }
 
-function uploadThumbnail(localPath, image, callback) {
-	var dest = image.meta.thumbRemotePath;
+function mediumResizeAndUploadImage(image, callback) {
+	mediumResizeImage(image.meta.localPath, function (err, tmp) {
+		if (err)
+			return callback(err);
+		uploadImage(tmp, image.meta.medRemotePath, function (err) {
+			fs.unlink(tmp);
+			callback(err);
+		});
+	});
+}
+
+function mediumResizeImage(filename, callback) {
+	var tmp = tempJpegFilename();
+	var args = [filename];
+	var cfg = config.visual.medium;
+	args.push('-auto-orient');
+	args.push('-gamma', '0.454545');
+	args.push('-filter', 'Lagrange');
+	args.push('-resize', assembleDimensions(cfg.size) + '>');
+	args.push('-gamma', '2.2');
+	args.push('-quality', cfg.quality);
+	args.push('jpg:' + tmp);
+	imagemagick.convert(args, function (err) {
+		if (err)
+			return callback(err);
+		callback(null, tmp);
+	});
+}
+
+function uploadImage(localPath, dest, callback) {
 	console.log("Uploading " + dest + "...");
 	var headers = reducedHeaders('image/jpeg');
 	s3.putFile(dest, localPath, 'public-read', headers, callback);
