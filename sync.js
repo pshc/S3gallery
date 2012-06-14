@@ -57,12 +57,7 @@ function updateAlbum(dir, callback) {
 		var n = album.needResize.length;
 		if (n)
 			console.log('Thumbnailing ' + pluralize(n, 'image') + '.');
-		forEachNParallel(3, album.needResize, function (image, cb) {
-			async.series([
-				thumbnailAndUploadImage.bind(null, image),
-				mediumResizeAndUploadImage.bind(null, image),
-			], cb);
-		}, next);
+		forEachNParallel(3, album.needResize, resizeAndUploadImage, next);
 	},
 	function (next) {
 		var index = buildIndex(album, dir);
@@ -227,6 +222,7 @@ function scanAlbum(dir, callback) {
 						return;
 				}
 				resizeNeeded = true;
+				image.meta[kind + 'NeedsUpdate'] = true;
 			});
 			if (resizeNeeded)
 				needResize.push(image);
@@ -235,7 +231,10 @@ function scanAlbum(dir, callback) {
 			return {path: removePrefix(config.AWS.prefix + dir, subdir.Prefix)};
 		});
 
-		var old = Object.keys(derived.thumb).concat(Object.keys(derived.med));
+		var old = [];
+		derivedKinds.forEach(function (kind) {
+			old = old.concat(Object.keys(derived[kind]));
+		});
 		callback(null, {
 			needResize: needResize,
 			allImages: allImages,
@@ -298,18 +297,29 @@ function downloadImage(image, callback) {
 	});
 }
 
-function thumbnailAndUploadImage(image, callback) {
-	thumbnailImage(image.meta.localPath, function (err, tmp) {
+var resizers = {};
+
+function resizeAndUploadImage(image, callback) {
+	var ops = [];
+	derivedKinds.forEach(function (kind) {
+		if (image.meta[kind+'NeedsUpdate'])
+			ops.push(_resizeUploadHelper.bind(null, kind, image));
+	});
+	async.series(ops, callback);
+}
+
+function _resizeUploadHelper(kind, image, callback) {
+	resizers[kind](image.meta.localPath, function (err, tmp) {
 		if (err)
 			return callback(err);
-		uploadImage(tmp, image.meta.thumbRemotePath, function (err) {
+		uploadImage(tmp, image.meta[kind+'RemotePath'], function (err) {
 			fs.unlink(tmp);
 			callback(err);
 		});
 	});
 }
 
-function thumbnailImage(filename, callback) {
+resizers.thumb = function (filename, callback) {
 	var tmp = tempJpegFilename();
 	var args = [filename];
 	var cfg = config.visual.thumb;
@@ -328,18 +338,7 @@ function thumbnailImage(filename, callback) {
 	});
 }
 
-function mediumResizeAndUploadImage(image, callback) {
-	mediumResizeImage(image.meta.localPath, function (err, tmp) {
-		if (err)
-			return callback(err);
-		uploadImage(tmp, image.meta.medRemotePath, function (err) {
-			fs.unlink(tmp);
-			callback(err);
-		});
-	});
-}
-
-function mediumResizeImage(filename, callback) {
+resizers.med = function (filename, callback) {
 	var tmp = tempJpegFilename();
 	var args = [filename];
 	var cfg = config.visual.med;
