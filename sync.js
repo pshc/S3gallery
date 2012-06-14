@@ -237,7 +237,7 @@ function imageMeta(image, albumDir) {
 	hash.update(info.md5);
 	hash = hash.digest('hex').slice(0, 6);
 	var prefix = path.basename(image.Key).slice(0, -info.ext.length);
-	info.thumbName = prefix + '_' + hash + info.ext;
+	info.thumbName = prefix + '_' + hash + '.jpg';
 	info.thumbRemotePath = config.AWS.prefix + 'thumbs/' + albumDir + info.thumbName;
 
 	return info;
@@ -252,7 +252,7 @@ function isDownloaded(image, callback) {
 // Album mutation
 
 function downloadImage(image, callback) {
-	var tmp = tempFilename(image.meta.ext);
+	var tmp = tempJpegFilename();
 	console.log("Downloading " + image.Key + "...");
 	s3.get(image.Key, 'stream', function (err, resp) {
 		if (err)
@@ -282,8 +282,7 @@ function thumbnailAndUploadImage(image, callback) {
 }
 
 function thumbnailImage(image, callback) {
-	//console.log("Thumbnailing " + image.meta.localPath + "...");
-	var tmp = tempFilename(image.meta.ext);
+	var tmp = tempJpegFilename();
 	var args = [image.meta.localPath];
 	var cfg = config.visual.thumbnail;
 	args.push('-thumbnail', cfg.size + '^');
@@ -358,9 +357,9 @@ function progressDownload(stream, len, dest, callback) {
 	});
 }
 
-function tempFilename(ext) {
+function tempJpegFilename() {
 	var rand = Math.ceil(Math.random() * 1e12).toString(36);
-	return path.join(config.scratchDir, 'tmp_' + rand + ext);
+	return path.join(config.scratchDir, 'tmp_' + rand + '.jpg');
 }
 
 function listDirectory(dir, callback) {
