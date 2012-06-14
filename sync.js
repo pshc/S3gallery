@@ -271,7 +271,7 @@ function downloadImage(image, callback) {
 }
 
 function thumbnailAndUploadImage(image, callback) {
-	thumbnailImage(image, function (err, tmp) {
+	thumbnailImage(image.meta.localPath, function (err, tmp) {
 		if (err)
 			return callback(err);
 		uploadThumbnail(tmp, image, function (err) {
@@ -281,9 +281,9 @@ function thumbnailAndUploadImage(image, callback) {
 	});
 }
 
-function thumbnailImage(image, callback) {
+function thumbnailImage(filename, callback) {
 	var tmp = tempJpegFilename();
-	var args = [image.meta.localPath];
+	var args = [filename];
 	var cfg = config.visual.thumbnail;
 	args.push('-thumbnail', cfg.size + '^');
 	args.push('-extent', cfg.size);
