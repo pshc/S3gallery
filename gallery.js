@@ -10,8 +10,8 @@ function orientSelf() {
 	var $script = $('script:last');
 	if (!$script.length)
 		return;
-	state.rootPath = $script.attr('src').match(/(.*)gallery\.js$/)[1];
 	var absRoot = $script.prop('src').match(/(.*)gallery\.js$/)[1];
+	state.rootPath = absRoot;
 	state.path = dirname(removePrefix(absRoot, document.location.href));
 
 	var options = new LightboxOptions;
