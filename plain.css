@@ -1,24 +1,28 @@
-a {
+section {
+	margin: 0;
+	padding: 0;
+}
+section a {
 	text-decoration: none;
 	color: #333;
 }
 body {
 	background-color: #222;
 }
-div, figure {
+section div, section figure {
 	float: left;
 	margin: 5px;
 	padding: 5px;
 	text-align: center;
 	vertical-align: middle;
 }
-div {
+section div {
 	background-color: white;
 	border: 1px solid white;
 	border-radius: 10px;
 	margin: 4px;
 }
-img {
+section img {
 	border-radius: 10px;
 }
 strong {
@@ -29,11 +33,11 @@ strong {
 		margin: 0;
 		padding: 0;
 	}
-	div {
+	section div {
 		margin: -1px;
 		padding: 0;
 	}
-	figure, img {
+	section figure, section img {
 		margin: 0;
 		padding: 0;
 		border-radius: 0;

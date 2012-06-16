@@ -3,6 +3,7 @@
 var state = {};
 var loading = false;
 var $main;
+var lightbox;
 
 function orientSelf() {
 	// Figure out where the album root is based on the JS script src
@@ -10,6 +11,12 @@ function orientSelf() {
 	state.rootPath = $script.attr('src').match(/(.*)gallery\.js$/)[1];
 	var absRoot = $script.prop('src').match(/(.*)gallery\.js$/)[1];
 	state.path = dirname(removePrefix(absRoot, document.location.href));
+
+	var options = new LightboxOptions;
+	options.fileLoadingImage = state.rootPath + 'lightbox/loading.gif';
+	options.fileCloseImage = state.rootPath + 'lightbox/close.png';
+	options.resizeDuration = options.fadeDuration = 250;
+	lightbox = new Lightbox(options);
 }
 
 function renderAlbum(album) {
@@ -20,7 +27,10 @@ function renderAlbum(album) {
 	});
 	$.each(album.images, function (i, image) {
 		var $img = $('<img>').attr('src', currentDir(image.thumb));
-		var $a = $('<a/>').attr('href', imageDir(image.full)).append($img);
+		var $a = $('<a/>', {
+			href: currentDir(image.med),
+			rel: 'lightbox[album]',
+		}).append($img);
 		$main.append($('<figure/>').append($a));
 	});
 }
@@ -28,7 +38,6 @@ function renderAlbum(album) {
 function addStyles() {
 	if ($('#thumb-style').length)
 		return;
-	$('<link rel=stylesheet>').attr('href', state.rootPath + 'plain.css').appendTo('head');
 	var dims = config.thumb.size;
 	function adjustSize(size) {
 		if (window.devicePixelRatio > 1)
@@ -38,7 +47,7 @@ function addStyles() {
 	// Use configuration's thumbnail dimensions for cell size and vertical alignment hack
 	var width = adjustSize(dims[0]), height = adjustSize(dims[1]);
 	var rule = 'width: ' + width + 'px; height: ' + height + 'px; line-height: ' + height + 'px;';
-	$('<style id="thumb-style">div, figure, img { ' + rule + ' }</style>').appendTo('head');
+	$('<style id="thumb-style">section div, section figure, section img { ' + rule + ' }</style>').appendTo('head');
 }
 
 function requestIndex() {
@@ -69,7 +78,7 @@ function initialSetup() {
 }
 
 $(function () {
-	$main = $('body');
+	$main = $('section');
 	setTimeout(initialSetup, 50);
 });
 
@@ -84,7 +93,7 @@ function onError($xhr, status, err) {
 	$('<strong/>').text(err).appendTo('body');
 }
 
-$(document).on('click', 'div a', function (event) {
+$(document).on('click', 'section div a', function (event) {
 	var path = $(event.target).attr('href');
 	state.path += path;
 	state.album = null;

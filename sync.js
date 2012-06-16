@@ -144,20 +144,23 @@ function uploadIndex(index, callback) {
 
 // index.html
 
-var jQueryJs = 'jquery-1.7.2.min.js';
+var scripts = ['deps/jquery-1.7.2.min.js', 'deps/lightbox/lightbox.js', 'gallery.js'];
+var stylesheets = ['plain.css', 'deps/lightbox/lightbox.min.css'];
 
 function buildHtml(dir) {
+	var level = dir.match(/[^\/]\//g).length;
+	var mediaPath = new Array(level + 1).join('../');
 	var title = path.basename(dir);
 	var html = '<!DOCTYPE html>\n<title>' + htmlEscape(title) + '</title>\n<meta charset=UTF-8>\n'
 	html += '<meta name=viewport content="width=device-width; minimum-scale=1.0; maximum-scale=1.0">\n';
-	html += '<body><noscript>Javascript required.</noscript></body>\n';
+	stylesheets.forEach(function (css) {
+		css = mediaPath + removePrefix('deps/', css);
+		html += '<link rel="stylesheet" href="' + encodeURI(css) + '">\n';
+	});
+	html += '<body><noscript>Javascript required.</noscript><section></section></body>\n';
 	html += '<script>var config = ' + JSON.stringify(config.visual) + ';</script>\n';
-	var level = dir.match(/[^\/]\//g).length;
-	var jsPath = new Array(level + 1).join('../');
-	var scripts = [jQueryJs, 'gallery.js'];
 	scripts.forEach(function (js) {
-		if (!js.match(/^https?:\/\//))
-			js = jsPath + js;
+		js = mediaPath + removePrefix('deps/', js);
 		html += '<script src="' + encodeURI(js) + '"></script>\n';
 	});
 	var buf = new Buffer(html, 'UTF-8');
@@ -364,15 +367,22 @@ function uploadImage(localPath, dest, callback) {
 
 // Support files
 
-var supportFiles = ['gallery.js', 'plain.css', jQueryJs];
+var supportFiles = scripts.concat(stylesheets);
+var lightboxImages = ['close.png', 'loading.gif', 'next.png', 'prev.png'];
+supportFiles = supportFiles.concat(lightboxImages.map(function (image) {
+	return 'deps/lightbox/' + image;
+}));
 var supportMimes = {
 	'.js': 'application/javascript',
 	'.css': 'text/css',
+	'.png': 'image/png',
+	'.gif': 'image/gif',
 };
 
 function uploadSupportFiles(callback) {
 	async.forEach(supportFiles, function (file, callback) {
-		var awsFile = config.AWS.prefix + 'thumbs/' + file;
+		var baseFile = removePrefix('deps/', file);
+		var awsFile = config.AWS.prefix + 'thumbs/' + baseFile;
 		s3.head(awsFile, function (err, meta) {
 			if (err)
 				return upload();
@@ -387,7 +397,7 @@ function uploadSupportFiles(callback) {
 			});
 		});
 		function upload() {
-			console.log('Uploading ' + file + '...');
+			console.log('Uploading ' + baseFile + '...');
 			var headers = reducedHeaders(supportMimes[path.extname(file)]);
 			s3.putFile(awsFile, file, 'public-read', headers, callback);
 		}
