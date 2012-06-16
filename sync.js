@@ -145,7 +145,7 @@ function checkIndex(index, callback) {
 function uploadIndex(index, callback) {
 	var buf = new Buffer(JSON.stringify(index.object), 'UTF-8');
 	var headers = reducedHeaders('application/json;charset=UTF-8');
-	headers['Cache-Control'] = 'max-age=3600';
+	headers['Cache-Control'] = config.cacheIndexes ? 'public' : 'must-revalidate';
 	headers[indexHashHeader] = index.hash;
 	s3.putBuffer(index.path, buf, 'public-read', headers, callback);
 }
