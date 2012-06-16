@@ -24,11 +24,11 @@ function orientSelf() {
 function renderAlbum(album) {
 	$main.empty();
 	$.each(album.dirs, function (i, dir) {
-		var $a = $('<a/>').attr('href', dir.path).text(dir.path);
+		var $a = $('<a/>', {href: dir.path, text: dir.path});
 		$main.append($('<div/>').append($a));
 	});
 	$.each(album.images, function (i, image) {
-		var $img = $('<img>').attr('src', currentDir(image.thumb));
+		var $img = $('<img>', {src: currentDir(image.thumb)});
 		var $a = $('<a/>', {
 			href: currentDir(image.med),
 			rel: 'lightbox[album]',
