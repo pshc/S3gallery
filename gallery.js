@@ -8,6 +8,8 @@ var lightbox;
 function orientSelf() {
 	// Figure out where the album root is based on the JS script src
 	var $script = $('script:last');
+	if (!$script.length)
+		return;
 	state.rootPath = $script.attr('src').match(/(.*)gallery\.js$/)[1];
 	var absRoot = $script.prop('src').match(/(.*)gallery\.js$/)[1];
 	state.path = dirname(removePrefix(absRoot, document.location.href));
