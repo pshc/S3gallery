@@ -10,6 +10,10 @@ var async = require('async'),
 var s3 = require('aws2js').load('s3', config.AWS.key, config.AWS.secret);
 s3.setBucket(config.AWS.bucket);
 
+if (!config.browsePath || !config.browsePath.match(/^\w+\/$/))
+	throw new Error("Bad browse/ path. Careful!");
+var browsePrefix = config.AWS.prefix + config.browsePath;
+
 // Crawling
 
 function findAlbums(dir, callback) {
@@ -22,7 +26,7 @@ function findAlbums(dir, callback) {
 		}
 		async.forEachSeries(info.dirs, function (subdir, callback) {
 			var pref = removePrefix(config.AWS.prefix, subdir.Prefix);
-			if (pref.match(/thumbs/))
+			if (pref == config.browsePath)
 				return callback(null);
 			setTimeout(findAlbums.bind(null, pref, callback), 0);
 		}, callback);
@@ -50,7 +54,7 @@ function updateAlbum(dir, callback) {
 		if (n)
 			console.log('Deleting ' + pluralize(n, 'old thumbnail') + '.');
 		forEachNParallel(4, album.oldDerived, function (thumb, cb) {
-			s3.del(config.AWS.prefix + 'thumbs/' + dir + thumb, cb);
+			s3.del(browsePrefix + dir + thumb, cb);
 		}, next);
 	},
 	function (next) {
@@ -77,7 +81,7 @@ function updateAlbum(dir, callback) {
 	},
 	function (next) {
 		var html = buildHtml(dir);
-		albumURL = 'http://' + config.AWS.bucket + '/' + config.AWS.prefix + 'thumbs/' + dir;
+		albumURL = 'http://' + config.AWS.bucket + '/' + browsePrefix + dir;
 		checkHtml(html, function (err, upToDate) {
 			if (err)
 				next(err);
@@ -125,7 +129,7 @@ function buildIndex(album, albumPath) {
 		images: imgs,
 		dirs: subdirs,
 	};
-	var js = config.AWS.prefix + 'thumbs/' + albumPath + 'index.js';
+	var js = browsePrefix + albumPath + 'index.js';
 	return {object: object, hash: hash.digest('hex'), path: js, version: version};
 }
 
@@ -167,7 +171,7 @@ function buildHtml(dir) {
 		html += '<script src="' + encodeURI(js) + '"></script>\n';
 	});
 	var buf = new Buffer(html, 'UTF-8');
-	var s3path = config.AWS.prefix + 'thumbs/' + dir + 'index.html';
+	var s3path = browsePrefix + dir + 'index.html';
 	return {buf: buf, path: s3path};
 }
 
@@ -192,7 +196,7 @@ var derivedKinds = ['thumb', 'med'];
 function scanAlbum(dir, callback) {
 	async.parallel({
 		images: listDirectory.bind(null, dir),
-		thumbs: listDirectory.bind(null, 'thumbs/' + dir),
+		thumbs: listDirectory.bind(null, config.browsePath + dir),
 	}, function (err, listings) {
 		if (err)
 			return callback(err);
@@ -270,7 +274,7 @@ function imageMeta(image, albumDir) {
 		var prefix = path.basename(image.Key).slice(0, -info.ext.length);
 		var name = prefix + '_' + kind + '_' + hash + '.jpg';
 		info[kind+'Name'] = name;
-		info[kind+'RemotePath'] = config.AWS.prefix + 'thumbs/' + albumDir + name;
+		info[kind+'RemotePath'] = browsePrefix + albumDir + name;
 	});
 
 	return info;
@@ -385,7 +389,7 @@ var supportMimes = {
 function uploadSupportFiles(callback) {
 	async.forEach(supportFiles, function (file, callback) {
 		var baseFile = removePrefix('deps/', file);
-		var awsFile = config.AWS.prefix + 'thumbs/' + baseFile;
+		var awsFile = config.AWS.prefix + config.browsePath + baseFile;
 		s3.head(awsFile, function (err, meta) {
 			if (err)
 				return upload();
