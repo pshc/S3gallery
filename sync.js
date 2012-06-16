@@ -21,9 +21,10 @@ function findAlbums(dir, callback) {
 	listDirectory(dir, function (err, info) {
 		if (err)
 			return callback(err);
-		if (info.objects.length) {
-			console.log("Contains " + info.objects.length + " images");
-		}
+		var photos = info.objects.filter(isPhoto);
+		var n = photos.length;
+		if (n)
+			console.log('Contains ' + pluralize(n, 'image'));
 		async.forEachSeries(info.dirs, function (subdir, callback) {
 			var pref = removePrefix(config.AWS.prefix, subdir.Prefix);
 			if (pref == config.browsePath)
@@ -217,7 +218,7 @@ function scanAlbum(dir, callback) {
 				kindMap[thumbName] = new Date(thumb.LastModified);
 		});
 		listings.images.objects.forEach(function (image) {
-			if (!path.extname(image.Key).match(config.validExtensions))
+			if (!isPhoto(image))
 				return;
 			image.meta = imageMeta(image, dir);
 			allImages.push(image);
@@ -437,6 +438,10 @@ function progressDownload(stream, len, dest, callback) {
 function tempJpegFilename() {
 	var rand = Math.ceil(Math.random() * 1e12).toString(36);
 	return path.join(config.scratchDir, 'tmp_' + rand + '.jpg');
+}
+
+function isPhoto(image) {
+	return path.extname(image.Key).match(config.validExtensions);
 }
 
 function listDirectory(dir, callback) {
