@@ -2,7 +2,7 @@
 
 var state = {};
 var loading = false;
-var $main;
+var $main, $status;
 var lightbox;
 
 function orientSelf() {
@@ -81,6 +81,7 @@ function initialSetup() {
 
 $(function () {
 	$main = $('section');
+	$status = $('<strong/>').insertBefore($main);
 	setTimeout(initialSetup, 50);
 });
 
@@ -92,7 +93,7 @@ function onGotIndex(album, status, $xhr) {
 
 function onError($xhr, status, err) {
 	$main.empty();
-	$('<strong/>').text(err).appendTo('body');
+	$status.text(err);
 }
 
 $(document).on('click', 'section div a', function (event) {
@@ -105,6 +106,7 @@ $(document).on('click', 'section div a', function (event) {
 });
 
 window.onpopstate = function (event) {
+	$status.text('');
 	if (!event.state || event.state.rootPath === undefined)
 		return;
 	state = event.state;
