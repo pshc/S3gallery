@@ -115,12 +115,15 @@ function buildIndex(album, albumPath) {
 		hash.update(image.meta.thumbName);
 		hash.update(image.meta.medName);
 	});
-	album.subdirs.forEach(function (dir) {
+	var subdirs = album.subdirs;
+	if (albumPath)
+		subdirs = [{path: '../'}].concat(subdirs);
+	subdirs.forEach(function (dir) {
 		hash.update(dir.path);
 	});
 	var object = {
 		images: imgs,
-		dirs: album.subdirs,
+		dirs: subdirs,
 	};
 	var js = config.AWS.prefix + 'thumbs/' + albumPath + 'index.js';
 	return {object: object, hash: hash.digest('hex'), path: js, version: version};
