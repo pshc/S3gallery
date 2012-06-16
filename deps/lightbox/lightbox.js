@@ -74,6 +74,8 @@ lightbox = new Lightbox options
     Lightbox.prototype.enable = function() {
       var _this = this;
       return $('body').on('click', 'a[rel^=lightbox], area[rel^=lightbox]', function(e) {
+        if (e.which != 1 || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)
+          return;
         _this.start($(e.currentTarget));
         return false;
       });
